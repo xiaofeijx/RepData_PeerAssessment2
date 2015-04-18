@@ -6,3 +6,54 @@ output: html_document
 ---
 
 
+```{r}
+ Sys.setlocale("LC_TIME", "English")
+#create data directory
+if (!file.exists("data")) {
+        message("Creating Data folder in working directory")
+        dir.create("data")
+        }
+
+#download the data
+if (!file.exists("./data/repdata-data-StormData.csv.bz2")) {
+download.file("http://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2", "./data/repdata-data-StormData.csv.bz2")
+dateDownloaded=date()     
+}
+
+raw <- read.table("./data/repdata-data-StormData.csv", sep=",",header=TRUE,stringsAsFactors = FALSE,quote="", row.names = NULL,fill = TRUE, comment.char = "",dec = ".")
+rawStorm = read.csv("./data/repdata-data-StormData.csv",header = TRUE, sep = ",")
+
+#library(data.table)
+#raw2 <- fread("./data/repdata-data-StormData.csv",quote="")
+```
+
+
+```{r}
+summary(raw)
+head(raw)
+str(raw)
+
+library(dplyr)
+raw2 <- select(raw,X.BGN_DATE.,X.EVTYPE.,X.FATALITIES.,X.INJURIES.,X.PROPDMG.,X.PROPDMGEXP.,X.CROPDMG.,X.CROPDMGEXP.)
+rm(raw)
+
+
+head(raw2)
+tail(raw2)
+table(raw2$X.EVTYPE.)
+raw3 <- head(raw2)
+raw3$date <- substr(raw3$X.BGN_DATE.,1,nchar(raw3$X.BGN_DATE.)-8)
+raw3$date <- strptime(raw3$date,"%m/%d/%Y")
+
+raw2$date <- substr(raw2$X.BGN_DATE.,1,nchar(raw2$X.BGN_DATE.)-8)
+raw2$date <- strptime(raw2$date,"%m/%d/%Y")
+
+raw2[203281,]
+
+raw4 <- filter(raw2,nchar(raw2$X.BGN_DATE.)<=18)
+```
+
+
+
+
+
