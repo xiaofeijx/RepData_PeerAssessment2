@@ -7,7 +7,7 @@ output: html_document
 
 
 ```{r}
- Sys.setlocale("LC_TIME", "English")
+
 #create data directory
 if (!file.exists("data")) {
         message("Creating Data folder in working directory")
@@ -17,41 +17,108 @@ if (!file.exists("data")) {
 #download the data
 if (!file.exists("./data/repdata-data-StormData.csv.bz2")) {
 download.file("http://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2", "./data/repdata-data-StormData.csv.bz2")
-dateDownloaded=date()     
+dateDownloaded=date()  
+bunzip2(file="repdata-data-StormData.csv.bz2",destname="repdata-data-StormData.csv")
+unlink("repdata-data-StormData.csv.bz2")
 }
 
-raw <- read.table("./data/repdata-data-StormData.csv", sep=",",header=TRUE,stringsAsFactors = FALSE,quote="", row.names = NULL,fill = TRUE, comment.char = "",dec = ".")
-rawStorm = read.csv("./data/repdata-data-StormData.csv",header = TRUE, sep = ",")
 
-#library(data.table)
-#raw2 <- fread("./data/repdata-data-StormData.csv",quote="")
+Sys.setlocale("LC_ALL", "English")
+
+rawStorm = read.csv("./data/repdata-data-StormData.csv",stringsAsFactors = FALSE)
+
+
+
+str(rawStorm)
+summary(rawStorm)
+
+#keep the columns that are needed for data analysis
+library(dplyr)
+storm <- select(rawStorm,BGN_DATE,EVTYPE,FATALITIES,INJURIES,PROPDMG,PROPDMGEXP,CROPDMG,CROPDMGEXP)
+
 ```
 
+clean and prepare the data for analysis
+```{r}
+storm <- mutate(storm,PROPDMGEXP=toupper(PROPDMGEXP),CROPDMGEXP=toupper(CROPDMGEXP))
+table(storm$PROPDMGEXP,useNA="ifany")
+storm$PROPDMGEXP[storm$PROPDMGEXP=="B"] <- "9"
+storm$PROPDMGEXP[storm$PROPDMGEXP=="M"] <- "6"
+storm$PROPDMGEXP[storm$PROPDMGEXP=="K"] <- "3"
+storm$PROPDMGEXP[storm$PROPDMGEXP=="H"] <- "2"
+storm$PROPDMGEXP[storm$PROPDMGEXP %in% c("-","?","+","")] <- "0"
+summary(storm$PROPDMGEXP)
+
+storm$PROPDMGEXP <- as.numeric(storm$PROPDMGEXP)
+storm$propdamage <- storm$PROPDMG * (10^storm$PROPDMGEXP)
+summary(storm$propdamage)
+summary(storm$PROPDMG )
+
+table(storm$CROPDMGEXP,useNA="ifany")
+storm$CROPDMGEXP[storm$CROPDMGEXP=="B"] <- "9"
+storm$CROPDMGEXP[storm$CROPDMGEXP=="M"] <- "6"
+storm$CROPDMGEXP[storm$CROPDMGEXP=="K"] <- "3"
+storm$CROPDMGEXP[storm$CROPDMGEXP %in% c("?","")] <- "0"
+storm$CROPDMGEXP <- as.numeric(storm$CROPDMGEXP)
+storm$corpdamage <- storm$CROPDMG * (10^storm$CROPDMGEXP)
+
+```
+
+the Eventype is a mess, so i will not clean it, just summarise it and find the leading causes of damage ot human and economic
 
 ```{r}
-summary(raw)
-head(raw)
-str(raw)
+dmtohealth <- group_by(storm,EVTYPE) %>%
+    summarise(totalfatality = sum(FATALITIES),totalinjury = sum(INJURIES))
 
-library(dplyr)
-raw2 <- select(raw,X.BGN_DATE.,X.EVTYPE.,X.FATALITIES.,X.INJURIES.,X.PROPDMG.,X.PROPDMGEXP.,X.CROPDMG.,X.CROPDMGEXP.)
-rm(raw)
-
-
-head(raw2)
-tail(raw2)
-table(raw2$X.EVTYPE.)
-raw3 <- head(raw2)
-raw3$date <- substr(raw3$X.BGN_DATE.,1,nchar(raw3$X.BGN_DATE.)-8)
-raw3$date <- strptime(raw3$date,"%m/%d/%Y")
-
-raw2$date <- substr(raw2$X.BGN_DATE.,1,nchar(raw2$X.BGN_DATE.)-8)
-raw2$date <- strptime(raw2$date,"%m/%d/%Y")
-
-raw2[203281,]
-
-raw4 <- filter(raw2,nchar(raw2$X.BGN_DATE.)<=18)
 ```
+
+find the top total fatalities
+```{r}
+top10fata <- arrange(dmtohealth,desc(totalfatality))[1:10,c(1,2)]
+```
+
+find the top total injuries
+```{r}
+top10injury <- arrange(dmtohealth,desc(totalinjury))[1:10,c(1,3)]
+
+```
+
+find the top 10 damage to health
+```{r}
+arrange(mutate(dmtohealth,healthdm=totalfatality+totalinjury ),desc(healthdm))[1:10,]
+
+```
+
+```{r}
+dmtoeco <- group_by(storm,EVTYPE) %>%
+    summarise(totalpropdmg=sum(propdamage),totalcropdmg = sum(corpdamage))
+```
+
+
+find the top total prop damage
+```{r}
+top10propdmg <- arrange(dmtoeco ,desc(totalpropdmg))[1:10,c(1,2)]
+```
+
+find the top total crop damage
+```{r}
+top10cropdmg <- arrange(dmtoeco,desc(totalcropdmg))[1:10,c(1,3)]
+
+```
+
+find the top 10 damage to health
+```{r}
+arrange(mutate(dmtoeco,ecodmg=totalpropdmg+totalcropdmg ),desc(ecodmg))[1:10,]
+
+```
+
+
+
+
+
+
+
+
 
 
 
