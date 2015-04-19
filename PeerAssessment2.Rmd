@@ -5,9 +5,24 @@ date: "Friday, April 17, 2015"
 output: html_document
 ---
 
+#Most Harmful Natrual Events to Public Health and Economic Across United States
 
+#synopsis
+Natrual events can cause human injuries and fatalities  and economic damages, data about what types of events are most harmful is important for emergency parepareness. The U.S. National Oceanic and Atmospheric Administration's (NOAA) storm data was used for this analysis.This database tracks characteristics of major storms and weather events in the United States, including when and where they occur, as well as estimates of any fatalities, injuries, and property damage.
+
+This project answer two questions  
+1.Across the United States, which types of events (as indicated in the EVTYPE variable) are most harmful with respect to population health?  
+2.Across the United States, which types of events have the greatest economic consequences?
+
+#Data Processing
+```{r,echo=FALSE}
+library(knitr)
+opts_chunk$set(tidy=TRUE,message=FALSE)
+```
+
+
+## loading the data
 ```{r}
-
 #create data directory
 if (!file.exists("data")) {
         message("Creating Data folder in working directory")
@@ -18,43 +33,40 @@ if (!file.exists("data")) {
 if (!file.exists("./data/repdata-data-StormData.csv.bz2")) {
 download.file("http://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2", "./data/repdata-data-StormData.csv.bz2")
 dateDownloaded=date()  
-bunzip2(file="repdata-data-StormData.csv.bz2",destname="repdata-data-StormData.csv")
-unlink("repdata-data-StormData.csv.bz2")
+# unlink("repdata-data-StormData.csv.bz2") #delete the file
 }
 
 
 Sys.setlocale("LC_ALL", "English")
-
-rawStorm = read.csv("./data/repdata-data-StormData.csv",stringsAsFactors = FALSE)
-
-
-
-str(rawStorm)
-summary(rawStorm)
+filepath <- bzfile("./data/repdata-data-StormData.csv.bz2")
+rawStorm = read.csv(filepath ,stringsAsFactors = FALSE)
 
 #keep the columns that are needed for data analysis
-library(dplyr)
-storm <- select(rawStorm,BGN_DATE,EVTYPE,FATALITIES,INJURIES,PROPDMG,PROPDMGEXP,CROPDMG,CROPDMGEXP)
+
 
 ```
 
-clean and prepare the data for analysis
+##clean and prepare the data for analysis
+the data is large, so I only select the variabls that needed for data analysis.according *NATIONAL WEATHER SERVICE INSTRUCTION* Alphabetical characters used to signify magnitude,include "H" for hundred, "K" for thousands, "M" for millions, and “B” for billions, other character is assigned with 0. then damage cost was calculated and assign to propdamage by  PROPDMG mutiplied with  PROPDMGEXP, to corpdamage  by  CROPDMG mutiplied with  CROPDMGEXP respectively.
 ```{r}
+library(dplyr)
+storm <- select(rawStorm,BGN_DATE,EVTYPE,FATALITIES,INJURIES,PROPDMG,PROPDMGEXP,CROPDMG,CROPDMGEXP)
+
 storm <- mutate(storm,PROPDMGEXP=toupper(PROPDMGEXP),CROPDMGEXP=toupper(CROPDMGEXP))
-table(storm$PROPDMGEXP,useNA="ifany")
+#table(storm$PROPDMGEXP,useNA="ifany")
 storm$PROPDMGEXP[storm$PROPDMGEXP=="B"] <- "9"
 storm$PROPDMGEXP[storm$PROPDMGEXP=="M"] <- "6"
 storm$PROPDMGEXP[storm$PROPDMGEXP=="K"] <- "3"
 storm$PROPDMGEXP[storm$PROPDMGEXP=="H"] <- "2"
 storm$PROPDMGEXP[storm$PROPDMGEXP %in% c("-","?","+","")] <- "0"
-summary(storm$PROPDMGEXP)
+#summary(storm$PROPDMGEXP)
 
 storm$PROPDMGEXP <- as.numeric(storm$PROPDMGEXP)
 storm$propdamage <- storm$PROPDMG * (10^storm$PROPDMGEXP)
-summary(storm$propdamage)
-summary(storm$PROPDMG )
+#summary(storm$propdamage)
+#summary(storm$PROPDMG )
 
-table(storm$CROPDMGEXP,useNA="ifany")
+#table(storm$CROPDMGEXP,useNA="ifany")
 storm$CROPDMGEXP[storm$CROPDMGEXP=="B"] <- "9"
 storm$CROPDMGEXP[storm$CROPDMGEXP=="M"] <- "6"
 storm$CROPDMGEXP[storm$CROPDMGEXP=="K"] <- "3"
@@ -64,8 +76,12 @@ storm$corpdamage <- storm$CROPDMG * (10^storm$CROPDMGEXP)
 
 ```
 
-the Eventype is a mess, so i will not clean it, just summarise it and find the leading causes of damage ot human and economic
 
+##Results
+
+the Eventype is a mess, so i will not clean it, just summarise it and find the leading ten causes of damage ot human and economic
+
+first calculate the total human fatalities and injuries grouped by eventype
 ```{r}
 dmtohealth <- group_by(storm,EVTYPE) %>%
     summarise(totalfatality = sum(FATALITIES),totalinjury = sum(INJURIES))
@@ -75,18 +91,25 @@ dmtohealth <- group_by(storm,EVTYPE) %>%
 find the top total fatalities
 ```{r}
 top10fata <- arrange(dmtohealth,desc(totalfatality))[1:10,c(1,2)]
+top10fata
 ```
 
 find the top total injuries
 ```{r}
 top10injury <- arrange(dmtohealth,desc(totalinjury))[1:10,c(1,3)]
-
+top10injury
 ```
 
 find the top 10 damage to health
-```{r}
-arrange(mutate(dmtohealth,healthdm=totalfatality+totalinjury ),desc(healthdm))[1:10,]
-
+```{r,fig.align='center',fig.height=5,fig.width=8}
+tendmghealth <- arrange(mutate(dmtohealth,healthdm=totalfatality+totalinjury ),desc(healthdm))[1:10,]
+library(ggplot2)
+ggplot(data=tendmghealth,aes(x=EVTYPE, y = healthdm))+geom_bar(stat="identity")+
+    labs(x="Event Type",y="Total Number of Health Damage",title="Top 10 Harmful Events to Public Health")+
+  theme_light()+
+    theme(plot.title=element_text(vjust=2,size=20),
+          axis.title=element_text(size=15),
+          axis.text.x=element_text(angle=60,vjust=0.6))
 ```
 
 ```{r}
@@ -98,29 +121,26 @@ dmtoeco <- group_by(storm,EVTYPE) %>%
 find the top total prop damage
 ```{r}
 top10propdmg <- arrange(dmtoeco ,desc(totalpropdmg))[1:10,c(1,2)]
+top10propdmg
 ```
 
 find the top total crop damage
 ```{r}
 top10cropdmg <- arrange(dmtoeco,desc(totalcropdmg))[1:10,c(1,3)]
-
+top10cropdmg
 ```
 
-find the top 10 damage to health
+find the top 10 damage to economic 
 ```{r}
-arrange(mutate(dmtoeco,ecodmg=totalpropdmg+totalcropdmg ),desc(ecodmg))[1:10,]
+toptenecodmg <- arrange(mutate(dmtoeco,ecodmg=totalpropdmg+totalcropdmg ),desc(ecodmg))[1:10,]
+ggplot(data=toptenecodmg ,aes(x=EVTYPE, y = ecodmg))+geom_bar(stat="identity")+
+    labs(x="Event Type",y="Total Cost of Economic Damages",title="Top 10 Harmful Events to Economic")+
+  theme_light()+
+    theme(plot.title=element_text(vjust=2,size=20),
+          axis.title=element_text(size=15),
+          axis.text.x=element_text(angle=60,vjust=0.6))
 
 ```
-
-
-
-
-
-
-
-
-
-
 
 
 
